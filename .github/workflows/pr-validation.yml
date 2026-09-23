@@ -5,8 +5,7 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: pr-validation-${{ github.event.pull_request.number }}
@@ -15,11 +14,13 @@ concurrency:
 jobs:
   repository-validation:
     name: Repository Validation
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Validate required structure
         shell: bash
