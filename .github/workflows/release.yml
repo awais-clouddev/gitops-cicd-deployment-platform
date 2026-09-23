@@ -22,6 +22,11 @@ jobs:
       attestations: write
     runs-on: ubuntu-latest
 
+    outputs:
+      api_digest: ${{ steps.digests.outputs.api_digest }}
+      frontend_digest: ${{ steps.digests.outputs.frontend_digest }}
+      release_sha: ${{ github.sha }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -185,3 +190,15 @@ jobs:
         run: |
           echo "Release validation successful."
           echo "Immutable version: ${{ steps.version.outputs.image_tag }}"
+
+
+  propose-development:
+    name: Propose Development Deployment
+    needs: release
+    uses: ./.github/workflows/gitops-update.yml
+    with:
+      api_digest: ${{ needs.release.outputs.api_digest }}
+      frontend_digest: ${{ needs.release.outputs.frontend_digest }}
+      release_sha: ${{ needs.release.outputs.release_sha }}
+    secrets:
+      GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
