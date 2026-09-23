@@ -47,7 +47,8 @@ jobs:
           ./scripts/update-gitops-development.py \
             --file /tmp/gitops-environments/apps/helpdesk/overlays/development/kustomization.yaml \
             --api-digest "${{ inputs.api_digest }}" \
-            --frontend-digest "${{ inputs.frontend_digest }}"
+            --frontend-digest "${{ inputs.frontend_digest }}" \
+            --release-sha "${{ inputs.release_sha }}"
 
       - name: Create deployment branch
         shell: bash
