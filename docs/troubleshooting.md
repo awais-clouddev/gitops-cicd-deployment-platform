@@ -149,9 +149,11 @@ kubectl annotate application helpdesk-development \
   --overwrite
 ```
 
-## 9. Documentation-Only Pushes Triggering Deployment PRs
+## 9. Documentation-Only Pushes Previously Triggered Deployment PRs
 
-The release workflow currently runs on every push to `main`. During final regression, restrict release execution to release-relevant paths or add equivalent change detection.
+The release workflow previously ran on every push to `main`, which caused documentation-only commits to create unnecessary release builds and GitOps deployment pull requests.
+
+The release trigger is now restricted to `app/**` changes, while `workflow_dispatch` remains available for manual release execution.
 
 ## 10. Branch Protection Bypass Message
 

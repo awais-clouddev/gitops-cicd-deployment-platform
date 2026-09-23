@@ -10,7 +10,7 @@ CI does not deploy directly to Kubernetes.
 
 The main release workflow runs on:
 
-- pushes to `main`
+- pushes to `main` when files under `app/**` change
 - manual workflow dispatch
 
 Pull requests use a separate validation workflow.
