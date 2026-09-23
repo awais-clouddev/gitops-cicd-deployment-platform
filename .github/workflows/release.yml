@@ -71,7 +71,7 @@ jobs:
 
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.74.1 \
+            aquasec/trivy:0.74.0 \
             image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
@@ -86,7 +86,7 @@ jobs:
 
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.74.1 \
+            aquasec/trivy:0.74.0 \
             image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
