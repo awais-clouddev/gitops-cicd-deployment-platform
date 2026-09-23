@@ -1,0 +1,105 @@
+name: GitOps Deployment PR
+
+on:
+  workflow_call:
+    inputs:
+      api_digest:
+        required: true
+        type: string
+      frontend_digest:
+        required: true
+        type: string
+      release_sha:
+        required: true
+        type: string
+    secrets:
+      GITOPS_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deployment-pr:
+    name: Propose Development Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Checkout GitOps repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git clone \
+            https://x-access-token:${GH_TOKEN}@github.com/awais-clouddev/gitops-environments.git \
+            /tmp/gitops-environments
+
+      - name: Update development desired state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ./scripts/update-gitops-development.py \
+            --file /tmp/gitops-environments/apps/helpdesk/overlays/development/kustomization.yaml \
+            --api-digest "${{ inputs.api_digest }}" \
+            --frontend-digest "${{ inputs.frontend_digest }}"
+
+      - name: Create deployment branch
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+
+          cd /tmp/gitops-environments
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="deploy/development-${RELEASE_SHA}"
+
+          git checkout -b "${BRANCH}"
+          git add apps/helpdesk/overlays/development/kustomization.yaml
+
+          if git diff --cached --quiet; then
+            echo "No deployment-state change required."
+            echo "changed=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          git commit -m "deploy: development ${RELEASE_SHA}"
+          git push origin "${BRANCH}"
+
+          echo "changed=true" >> "$GITHUB_ENV"
+          echo "deployment_branch=${BRANCH}" >> "$GITHUB_ENV"
+
+      - name: Open GitOps deployment pull request
+        if: env.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          cd /tmp/gitops-environments
+
+          gh pr create \
+            --base main \
+            --head "${deployment_branch}" \
+            --title "deploy: development ${{ inputs.release_sha }}" \
+            --body "Automated GitOps deployment proposal.
+
+          Source release: ${{ inputs.release_sha }}
+
+          API digest:
+          \`${{ inputs.api_digest }}\`
+
+          Frontend digest:
+          \`${{ inputs.frontend_digest }}\`
+
+          This PR changes desired state only. Argo CD remains responsible for deployment."
