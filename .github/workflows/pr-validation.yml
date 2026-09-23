@@ -1,0 +1,85 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  repository-validation:
+    name: Repository Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate required structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -d app
+          test -d docs
+          test -d scripts
+          test -f app/compose.yaml
+          test -f app/api/Dockerfile
+          test -f app/frontend/Dockerfile
+
+          echo "Repository structure validation passed."
+
+      - name: Check for accidental tracked environment files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "ERROR: .env file must not be committed."
+            exit 1
+          fi
+
+          echo "Secret-file baseline validation passed."
+
+      - name: Validate Python source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q app/api/app
+          echo "Python source validation passed."
+
+      - name: Validate Docker Compose configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file app/.env.example             -f app/compose.yaml             config >/dev/null
+
+          echo "Docker Compose configuration validation passed."
+
+      - name: Validate immutable version script
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/image-version.sh
+
+      - name: Validate API container build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag p5-api:pr-validation \
+            app/api
+
+      - name: Validate frontend container build
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --tag p5-frontend:pr-validation \
+            app/frontend

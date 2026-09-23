@@ -1,0 +1,130 @@
+name: Main Release Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and Security Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate immutable version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "image_tag=sha-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Release version: sha-${GITHUB_SHA}"
+
+      - name: Validate application
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m compileall -q app/api/app
+
+          docker compose \
+            --env-file app/.env.example \
+            -f app/compose.yaml \
+            config >/dev/null
+
+          echo "Application validation passed."
+
+      - name: Build API image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -t p5-api:${{ steps.version.outputs.image_tag }} \
+            app/api
+
+      - name: Build frontend image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build \
+            -t p5-frontend:${{ steps.version.outputs.image_tag }} \
+            app/frontend
+
+      - name: Security gate - API
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.1 \
+            image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            p5-api:${{ steps.version.outputs.image_tag }}
+
+      - name: Security gate - frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.74.1 \
+            image \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            p5-frontend:${{ steps.version.outputs.image_tag }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish API image to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/gitops-cicd-deployment-platform-api:${{ steps.version.outputs.image_tag }}"
+
+          docker tag             p5-api:${{ steps.version.outputs.image_tag }}             "${IMAGE}"
+
+          docker push "${IMAGE}"
+
+      - name: Publish frontend image to GHCR
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER}/gitops-cicd-deployment-platform-frontend:${{ steps.version.outputs.image_tag }}"
+
+          docker tag             p5-frontend:${{ steps.version.outputs.image_tag }}             "${IMAGE}"
+
+          docker push "${IMAGE}"
+
+      - name: Release validation summary
+        shell: bash
+        run: |
+          echo "Release validation successful."
+          echo "Immutable version: ${{ steps.version.outputs.image_tag }}"
