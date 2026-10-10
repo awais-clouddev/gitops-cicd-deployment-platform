@@ -29,15 +29,15 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Checkout GitOps repository
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
-        run: |
-          set -euo pipefail
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: awais-clouddev/gitops-environments
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops-environments
+          persist-credentials: true
 
-          git clone \
-            https://x-access-token:${GH_TOKEN}@github.com/awais-clouddev/gitops-environments.git \
-            /tmp/gitops-environments
+      - name: Install YAML dependency
+        run: python3 -m pip install 'PyYAML==6.0.3'
 
       - name: Update development desired state
         shell: bash
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
 
           ./scripts/update-gitops-development.py \
-            --file /tmp/gitops-environments/apps/helpdesk/overlays/development/kustomization.yaml \
+            --file gitops-environments/apps/helpdesk/overlays/development/kustomization.yaml \
             --api-digest "${{ inputs.api_digest }}" \
             --frontend-digest "${{ inputs.frontend_digest }}" \
             --release-sha "${{ inputs.release_sha }}"
@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cd /tmp/gitops-environments
+          cd gitops-environments
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -87,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          cd /tmp/gitops-environments
+          cd gitops-environments
 
           gh pr create \
             --base main \

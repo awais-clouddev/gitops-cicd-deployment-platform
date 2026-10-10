@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import argparse
+import re
+import yaml
 from pathlib import Path
 
 
@@ -17,28 +19,40 @@ def main():
     if not path.exists():
         raise SystemExit(f"GitOps file not found: {path}")
 
-    text = path.read_text()
+    for value in (args.api_digest, args.frontend_digest):
+        if not re.fullmatch(r"sha256:[a-f0-9]{64}", value):
+            raise SystemExit(f"Invalid image digest: {value}")
 
-    marker = "\nimages:\n"
+    if not re.fullmatch(r"[a-f0-9]{40}", args.release_sha):
+        raise SystemExit("Invalid release SHA")
 
-    if marker in text:
-        text = text.split(marker)[0].rstrip() + "\n"
+    data = yaml.safe_load(path.read_text())
+    if not isinstance(data, dict):
+        raise SystemExit("Invalid Kustomization YAML")
 
-    text += f"""
-commonAnnotations:
-  gitops.platform/release-sha: {args.release_sha}
+    images = data.get("images")
+    if not isinstance(images, list):
+        raise SystemExit("Missing images list")
 
-images:
-  - name: ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-api
-    newName: ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-api
-    digest: {args.api_digest}
+    expected = {
+        "ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-api": args.api_digest,
+        "ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-frontend": args.frontend_digest,
+    }
+    found = set()
+    for item in images:
+        if item.get("name") in expected:
+            name = item["name"]
+            item["digest"] = expected[name]
+            found.add(name)
 
-  - name: ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-frontend
-    newName: ghcr.io/awais-clouddev/gitops-cicd-deployment-platform-frontend
-    digest: {args.frontend_digest}
-"""
+    if found != set(expected):
+        raise SystemExit("Missing expected API or frontend image")
 
-    path.write_text(text)
+    data.setdefault("commonAnnotations", {})[
+        "gitops.platform/release-sha"
+    ] = args.release_sha
+
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
 
     print(f"Updated: {path}")
     print(f"API digest: {args.api_digest}")
