@@ -55,6 +55,14 @@ jobs:
           python -m compileall -q app/api/app
           echo "Python source validation passed."
 
+      - name: Run API tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r app/api/requirements.txt
+          cd app/api
+          python -m unittest discover -s tests -v
+
       - name: Validate Docker Compose configuration
         shell: bash
         run: |

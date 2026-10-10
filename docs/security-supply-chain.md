@@ -18,7 +18,7 @@ Controls include:
 - Trivy repository secret scans
 - clean Git remotes with no embedded credentials
 
-Both repositories completed secret scans with zero detected secrets.
+Repository secret scanning was performed during the original project validation; this current offline audit did not rerun a dedicated secret-scanning tool.
 
 ## GitHub Credentials
 

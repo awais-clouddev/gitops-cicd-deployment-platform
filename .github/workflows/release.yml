@@ -17,6 +17,7 @@ concurrency:
 jobs:
   release:
     name: Build and Security Validate
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -81,7 +82,7 @@ jobs:
 
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.74.0 \
+            aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
             image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
@@ -96,7 +97,7 @@ jobs:
 
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.74.0 \
+            aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969 \
             image \
             --scanners vuln \
             --severity HIGH,CRITICAL \
@@ -111,9 +112,9 @@ jobs:
 
           mkdir -p sbom
 
-          docker run --rm             -v /var/run/docker.sock:/var/run/docker.sock             -v "$PWD:/workspace"             aquasec/trivy:0.74.0             image             --format cyclonedx             --output /workspace/sbom/api-sbom.cdx.json             p5-api:${{ steps.version.outputs.image_tag }}
+          docker run --rm             -v /var/run/docker.sock:/var/run/docker.sock             -v "$PWD:/workspace"             aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969             image             --format cyclonedx             --output /workspace/sbom/api-sbom.cdx.json             p5-api:${{ steps.version.outputs.image_tag }}
 
-          docker run --rm             -v /var/run/docker.sock:/var/run/docker.sock             -v "$PWD:/workspace"             aquasec/trivy:0.74.0             image             --format cyclonedx             --output /workspace/sbom/frontend-sbom.cdx.json             p5-frontend:${{ steps.version.outputs.image_tag }}
+          docker run --rm             -v /var/run/docker.sock:/var/run/docker.sock             -v "$PWD:/workspace"             aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969             image             --format cyclonedx             --output /workspace/sbom/frontend-sbom.cdx.json             p5-frontend:${{ steps.version.outputs.image_tag }}
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -164,6 +165,18 @@ jobs:
           API_DIGEST=$(docker buildx imagetools inspect             "${API_NAME}:${TAG}"             --format '{{json .Manifest}}' | jq -r '.digest')
 
           FRONTEND_DIGEST=$(docker buildx imagetools inspect             "${FRONTEND_NAME}:${TAG}"             --format '{{json .Manifest}}' | jq -r '.digest')
+
+          DIGEST_PATTERN='^sha256:[a-f0-9]{64}$'
+
+          [[ "${API_DIGEST}" =~ ${DIGEST_PATTERN} ]] || {
+            echo "ERROR: Invalid API image digest: ${API_DIGEST}"
+            exit 1
+          }
+
+          [[ "${FRONTEND_DIGEST}" =~ ${DIGEST_PATTERN} ]] || {
+            echo "ERROR: Invalid frontend image digest: ${FRONTEND_DIGEST}"
+            exit 1
+          }
 
           echo "api_name=${API_NAME}" >> "$GITHUB_OUTPUT"
           echo "api_digest=${API_DIGEST}" >> "$GITHUB_OUTPUT"

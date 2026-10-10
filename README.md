@@ -217,6 +217,8 @@ This allows the exact container artifact to be traced, promoted and restored.
 
 ## Environment Promotion
 
+> **Environment scope:** The committed Argo CD Application automatically reconciles the development overlay. Staging is implemented as a separate validated promotion overlay, but no staging Argo CD Application is currently committed.
+
 Development and staging have independent GitOps overlays.
 
 Promotion follows the rule:
