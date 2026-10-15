@@ -370,8 +370,21 @@ Secret-key checks. Promotion integrity passed in a disposable repository copy.
 Development is configured for Argo CD reconciliation. Staging remains
 desired-state-only; promotion does not establish a running staging environment.
 
-The existing local cluster could not start because of Docker storage errors.
-Clean installation and current reconciliation remain unverified. Historical
-evidence describes earlier runs, not validation of these revised images.
+A fresh three-node kind cluster named gitops-audit was verified locally
+on 15 October 2026 using Argo CD v3.5.3. Runtime Secrets used the documented
+database keys. All five application Pods became Ready, and Argo CD reported
+Synced and Healthy for source release
+f5b376905d2325dd7d529888b4ee8fbea875325f.
+
+Gateway HTTP tests passed for health, ticket creation, reading,
+case-insensitive priority filtering, status update and verification.
+After manually scaling the API to two replicas, Argo CD restored the
+Git-declared count of one replica.
+
+Redis failure behavior was verified using mocked regression tests.
+A live Redis outage, browser rendering and staging runtime promotion were
+not tested in this run. Staging remains desired-state-only.
+The older cluster's Docker storage problem was bypassed with the fresh
+audit cluster; it was not repaired.
 
 Use the GitOps repository's docs/validation-scope.md for environment scope.
