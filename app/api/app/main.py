@@ -1,9 +1,11 @@
+import hashlib
 import json
 import os
 import socket
 
 import psycopg2
 import redis
+from redis.exceptions import RedisError
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -52,8 +54,11 @@ def get_redis_connection():
 def clear_ticket_cache():
     redis_connection = get_redis_connection()
 
-    for key in redis_connection.scan_iter("tickets:*"):
-        redis_connection.delete(key)
+    try:
+        for key in redis_connection.scan_iter("tickets:*"):
+            redis_connection.delete(key)
+    except RedisError:
+        pass  # Database write already committed; cached data expires after 60s.
 
 
 @app.get("/")
@@ -126,18 +131,26 @@ def get_tickets(
 ):
     redis_connection = get_redis_connection()
 
-    cache_key = (
-        f"tickets:search:{search.lower()}:"
-        f"status:{status.lower()}:priority:{priority.lower()}"
-    )
+    cache_key = "tickets:" + hashlib.sha256(
+        json.dumps(
+            [search.lower(), status.lower(), priority.lower()],
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
-    cached_tickets = redis_connection.get(cache_key)
-
-    if cached_tickets:
-        return {
-            "source": "redis-cache",
-            "tickets": json.loads(cached_tickets),
-        }
+    try:
+        cached_tickets = redis_connection.get(cache_key)
+        if cached_tickets:
+            tickets = json.loads(cached_tickets)
+            if isinstance(tickets, list) and all(
+                isinstance(ticket, dict)
+                and {"id", "employee_name", "issue", "priority",
+                     "status", "created_at"} <= ticket.keys()
+                for ticket in tickets
+            ):
+                return {"source": "redis-cache", "tickets": tickets}
+    except (RedisError, ValueError, TypeError):
+        pass
 
     connection = get_database_connection()
     cursor = connection.cursor()
@@ -161,12 +174,12 @@ def get_tickets(
         )
 
     if status:
-        conditions.append("status = %s")
-        parameters.append(status)
+        conditions.append("LOWER(status) = %s")
+        parameters.append(status.lower())
 
     if priority:
-        conditions.append("priority = %s")
-        parameters.append(priority)
+        conditions.append("LOWER(priority) = %s")
+        parameters.append(priority.lower())
 
     query = """
         SELECT id, employee_name, issue, priority, status, created_at
@@ -196,11 +209,10 @@ def get_tickets(
         for row in rows
     ]
 
-    redis_connection.setex(
-        cache_key,
-        60,
-        json.dumps(tickets),
-    )
+    try:
+        redis_connection.setex(cache_key, 60, json.dumps(tickets))
+    except RedisError:
+        pass  # PostgreSQL results remain usable when Redis is unavailable.
 
     return {
         "source": "postgresql",

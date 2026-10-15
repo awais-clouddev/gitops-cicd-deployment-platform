@@ -75,6 +75,23 @@ jobs:
             -t p5-frontend:${{ steps.version.outputs.image_tag }} \
             app/frontend
 
+      - name: Full vulnerability reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vulnerability-reports
+          for component in api frontend; do
+            docker run --rm               -v /var/run/docker.sock:/var/run/docker.sock               -v "$PWD/vulnerability-reports:/reports"               aquasec/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969               image --scanners vuln --format json --exit-code 0               --output "/reports/$component.json"               "p5-$component:${{ steps.version.outputs.image_tag }}"
+          done
+
+      - name: Upload full vulnerability reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-vulnerabilities-${{ steps.version.outputs.image_tag }}
+          path: vulnerability-reports/*.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Security gate - API
         shell: bash
         run: |
