@@ -83,7 +83,7 @@ The CI release workflow scans both API and frontend images for:
 - HIGH vulnerabilities
 - CRITICAL vulnerabilities
 
-The verified release audit showed zero HIGH/CRITICAL findings for both application images.
+Historical release results describe the scanner database and gate settings used at that time. The gate checks HIGH/CRITICAL findings with --ignore-unfixed, so a passing gate does not establish absence of unfixed vulnerabilities.
 
 ## Software Bill of Materials
 
@@ -240,3 +240,19 @@ The implemented controls include:
 ## Security Principle
 
 **CI produces verified immutable artifacts. Git records deployment intent. Argo CD reconciles the cluster. Secrets and credentials remain outside committed desired state.**
+
+## Vulnerability Reporting and Attestation Boundary
+
+Full JSON vulnerability reports are generated without --ignore-unfixed and
+uploaded before the blocking gates. These reports include unfixed findings;
+the HIGH/CRITICAL gates continue to block fixable findings. Reports and SBOMs
+have a 30-day artifact retention period and are time-specific evidence.
+
+SBOM and provenance generation provide inventory and build traceability.
+They do not enforce admission-time signature or attestation verification.
+No deployment-time provenance verification policy is implemented in this lab.
+
+A successful database write remains successful when Redis invalidation fails.
+Ticket reads fall back to PostgreSQL when cache operations fail. Existing
+cached results may remain stale until their 60-second TTL expires; concurrent
+cache repopulation is also an accepted lab consistency limit.

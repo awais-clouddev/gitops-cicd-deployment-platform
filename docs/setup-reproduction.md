@@ -43,7 +43,7 @@ Verify:
 ```bash
 git --version
 docker --version
-kubectl version --client
+kubectl --context kind-gitops-platform version --client
 kind version
 gh --version
 trivy --version
@@ -99,8 +99,8 @@ kind create cluster   --name gitops-platform   --config platform/kind/cluster.ya
 Verify:
 
 ```bash
-kubectl config current-context
-kubectl get nodes -o wide
+kubectl --context kind-gitops-platform config current-context
+kubectl --context kind-gitops-platform get nodes -o wide
 ```
 
 Expected context:
@@ -116,7 +116,7 @@ The project cluster contains three Kubernetes nodes.
 Create the namespace:
 
 ```bash
-kubectl create namespace argocd
+kubectl --context kind-gitops-platform create namespace argocd
 ```
 
 Read the project version:
@@ -130,34 +130,34 @@ echo "$ARGO_VERSION"
 Install that version:
 
 ```bash
-kubectl apply -n argocd   -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGO_VERSION}/manifests/install.yaml"
+kubectl --context kind-gitops-platform apply -n argocd   -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGO_VERSION}/manifests/install.yaml"
 ```
 
 Wait for the server:
 
 ```bash
-kubectl wait   --for=condition=Available   deployment/argocd-server   -n argocd   --timeout=300s
+kubectl --context kind-gitops-platform wait   --for=condition=Available   deployment/argocd-server   -n argocd   --timeout=300s
 ```
 
 Check components:
 
 ```bash
-kubectl get pods -n argocd
+kubectl --context kind-gitops-platform get pods -n argocd
 ```
 
 ## Apply the Argo CD Lab Security Baseline
 
 ```bash
 cd ~/projects/gitops-cicd-deployment-platform
-kubectl apply -f platform/argocd/security-baseline.yaml
+kubectl --context kind-gitops-platform apply -f platform/argocd/security-baseline.yaml
 ```
 
 Verify important settings:
 
 ```bash
-kubectl get configmap argocd-cm   -n argocd   -o jsonpath='anonymous={.data.users\.anonymous\.enabled}{"\n"}exec={.data.exec\.enabled}{"\n"}'
+kubectl --context kind-gitops-platform get configmap argocd-cm   -n argocd   -o jsonpath='anonymous={.data.users\.anonymous\.enabled}{"\n"}exec={.data.exec\.enabled}{"\n"}'
 
-kubectl get service argocd-server -n argocd
+kubectl --context kind-gitops-platform get service argocd-server -n argocd
 ```
 
 The lab baseline keeps anonymous access disabled, exec disabled, and the Argo CD server as ClusterIP.
@@ -165,7 +165,7 @@ The lab baseline keeps anonymous access disabled, exec disabled, and the Argo CD
 ## Create the Development Namespace
 
 ```bash
-kubectl create namespace helpdesk-development   --dry-run=client   -o yaml | kubectl apply -f -
+kubectl --context kind-gitops-platform create namespace helpdesk-development   --dry-run=client   -o yaml | kubectl --context kind-gitops-platform apply -f -
 ```
 
 ## Create Runtime-Only Secrets
@@ -179,7 +179,7 @@ DB_PASSWORD="$(openssl rand -base64 32)"
 Create the runtime secret:
 
 ```bash
-kubectl create secret generic helpdesk-secrets   -n helpdesk-development   --from-literal=POSTGRES_PASSWORD="$DB_PASSWORD"   --from-literal=DATABASE_URL="postgresql://helpdesk:${DB_PASSWORD}@postgres:5432/helpdesk"   --from-literal=REDIS_URL="redis://redis:6379/0"   --dry-run=client   -o yaml | kubectl apply -f -
+kubectl --context kind-gitops-platform create secret generic helpdesk-secrets -n helpdesk-development --from-literal=database-name=helpdesk --from-literal=database-user=helpdesk --from-literal=database-password="$DB_PASSWORD" --dry-run=client -o yaml | kubectl --context kind-gitops-platform apply -f -
 ```
 
 Remove the shell variable:
@@ -195,8 +195,8 @@ Do not export this Secret manifest into Git.
 ```bash
 cd ~/projects/gitops-environments
 
-kubectl kustomize apps/helpdesk/overlays/development > /tmp/helpdesk-development.yaml
-kubectl kustomize apps/helpdesk/overlays/staging > /tmp/helpdesk-staging.yaml
+kubectl --context kind-gitops-platform kustomize apps/helpdesk/overlays/development > /tmp/helpdesk-development.yaml
+kubectl --context kind-gitops-platform kustomize apps/helpdesk/overlays/staging > /tmp/helpdesk-staging.yaml
 
 test -s /tmp/helpdesk-development.yaml
 test -s /tmp/helpdesk-staging.yaml
@@ -208,13 +208,13 @@ rm -f /tmp/helpdesk-development.yaml /tmp/helpdesk-staging.yaml
 
 ```bash
 cd ~/projects/gitops-environments
-kubectl apply -f argocd/helpdesk-development.yaml
+kubectl --context kind-gitops-platform apply -f argocd/helpdesk-development.yaml
 ```
 
 Verify:
 
 ```bash
-kubectl get application helpdesk-development -n argocd
+kubectl --context kind-gitops-platform get application helpdesk-development -n argocd
 ```
 
 Argo CD should begin reconciling the development overlay automatically.
@@ -222,7 +222,7 @@ Argo CD should begin reconciling the development overlay automatically.
 ## Wait for Workloads
 
 ```bash
-kubectl get pods -n helpdesk-development -w
+kubectl --context kind-gitops-platform get pods -n helpdesk-development -w
 ```
 
 When all workload pods are Ready, stop the watch with `Ctrl+C`.
@@ -230,15 +230,15 @@ When all workload pods are Ready, stop the watch with `Ctrl+C`.
 Then verify:
 
 ```bash
-kubectl get deployments,statefulsets -n helpdesk-development
-kubectl get pods -n helpdesk-development
-kubectl get services -n helpdesk-development
+kubectl --context kind-gitops-platform get deployments,statefulsets -n helpdesk-development
+kubectl --context kind-gitops-platform get pods -n helpdesk-development
+kubectl --context kind-gitops-platform get services -n helpdesk-development
 ```
 
 ## Validate Argo CD Health
 
 ```bash
-kubectl get application helpdesk-development   -n argocd   -o jsonpath='sync={.status.sync.status} health={.status.health.status}{"\n"}'
+kubectl --context kind-gitops-platform get application helpdesk-development   -n argocd   -o jsonpath='sync={.status.sync.status} health={.status.health.status}{"\n"}'
 ```
 
 Expected steady state:
@@ -250,7 +250,7 @@ sync=Synced health=Healthy
 ## Validate Reconciliation Controls
 
 ```bash
-kubectl get application helpdesk-development   -n argocd   -o jsonpath='autoSync={.spec.syncPolicy.automated.enabled} prune={.spec.syncPolicy.automated.prune} selfHeal={.spec.syncPolicy.automated.selfHeal}{"\n"}'
+kubectl --context kind-gitops-platform get application helpdesk-development   -n argocd   -o jsonpath='autoSync={.spec.syncPolicy.automated.enabled} prune={.spec.syncPolicy.automated.prune} selfHeal={.spec.syncPolicy.automated.selfHeal}{"\n"}'
 ```
 
 Expected:
@@ -262,7 +262,7 @@ autoSync=true prune=true selfHeal=true
 ## Validate Immutable Images
 
 ```bash
-kubectl get pods   -n helpdesk-development   -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{range .spec.containers[*]}{.image}{" "}{end}{"\n"}{end}'
+kubectl --context kind-gitops-platform get pods   -n helpdesk-development   -o jsonpath='{range .items[*]}{.metadata.name}{" => "}{range .spec.containers[*]}{.image}{" "}{end}{"\n"}{end}'
 ```
 
 The API and frontend application images should use immutable SHA256 digests rather than `latest`.
@@ -270,7 +270,7 @@ The API and frontend application images should use immutable SHA256 digests rath
 ## Validate Release Traceability
 
 ```bash
-kubectl get deployment helpdesk-api   -n helpdesk-development   -o jsonpath='{.metadata.annotations.gitops\.platform/release-sha}{"\n"}'
+kubectl --context kind-gitops-platform get deployment helpdesk-api   -n helpdesk-development   -o jsonpath='{.metadata.annotations.gitops\.platform/release-sha}{"\n"}'
 ```
 
 The value should correspond to the source Git commit associated with the deployed release.
@@ -280,7 +280,7 @@ The value should correspond to the source Git commit associated with the deploye
 Start a port-forward:
 
 ```bash
-kubectl port-forward   -n helpdesk-development   service/helpdesk-gateway   18090:80
+kubectl --context kind-gitops-platform port-forward   -n helpdesk-development   service/helpdesk-gateway   18090:80
 ```
 
 In another terminal:
@@ -357,3 +357,21 @@ The environment is successfully reproduced when:
 Bootstrap the local platform once, then let Git define application desired state and let Argo CD reconcile Kubernetes.
 
 Normal application delivery should flow through CI -> GHCR -> GitOps pull request -> Argo CD rather than direct Kubernetes deployment from CI.
+
+## Current Verification Scope
+
+Eight API regression tests passed using an isolated container with mocked
+database/cache dependencies. They cover input validation, filter casing,
+cache-key collisions, malformed cache responses and Redis failure handling.
+
+Both GitOps overlays rendered and passed namespace, image-digest and
+Secret-key checks. Promotion integrity passed in a disposable repository copy.
+
+Development is configured for Argo CD reconciliation. Staging remains
+desired-state-only; promotion does not establish a running staging environment.
+
+The existing local cluster could not start because of Docker storage errors.
+Clean installation and current reconciliation remain unverified. Historical
+evidence describes earlier runs, not validation of these revised images.
+
+Use the GitOps repository's docs/validation-scope.md for environment scope.
